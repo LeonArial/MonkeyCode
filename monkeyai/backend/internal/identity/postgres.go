@@ -251,7 +251,7 @@ func (s *Service) updateUser(ctx context.Context, id, name, role, status, passwo
 
 func (s *Service) upsertIdentity(ctx context.Context, profile upstreamProfile, adminOnly, autoRegistrationEnabled bool) (User, error) {
 	result, err := s.writer.UpsertIdentity(ctx, member.OAuthIdentity{
-		Provider: profile.Provider, Issuer: profile.Issuer, Subject: profile.Subject,
+		EmailVerified: profile.EmailVerified, Provider: profile.Provider, Issuer: profile.Issuer, Subject: profile.Subject,
 		Username: profile.Username, Name: profile.Name, Email: profile.Email, AvatarURL: profile.AvatarURL,
 		AdminOnly: adminOnly, AutoRegistrationEnabled: autoRegistrationEnabled,
 	})

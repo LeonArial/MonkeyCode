@@ -12,8 +12,11 @@ import (
 
 	"github.com/chaitin/MonkeyCode/monkeyai/backend/internal/app"
 	"github.com/chaitin/MonkeyCode/monkeyai/backend/internal/config"
+	"github.com/chaitin/MonkeyCode/monkeyai/backend/internal/localmember"
 	"github.com/chaitin/MonkeyCode/monkeyai/backend/logging"
+	"github.com/chaitin/MonkeyCode/monkeyai/backend/member"
 	"github.com/chaitin/MonkeyCode/monkeyai/backend/server"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -55,6 +58,13 @@ func run(logger *slog.Logger) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	// 仅在显式启用时提供本机成员管理，不替代宿主的授权实现。
+	if os.Getenv("MONKEYAI_LOCAL_DEV") == "true" {
+		logger.Warn("已启用本地开发成员管理")
+		return server.Run(ctx, os.Args[1:], logger, func(pool *pgxpool.Pool) (member.UserWriter, member.GroupWriter, error) {
+			return localmember.New(pool), localmember.Groups{}, nil
+		})
+	}
 	application, err := app.New(ctx, cfg, logger)
 	if err != nil {
 		return err

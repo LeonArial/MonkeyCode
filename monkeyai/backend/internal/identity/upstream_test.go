@@ -401,3 +401,12 @@ func TestUpstreamResponseCloseLogsOriginalError(t *testing.T) {
 		t.Fatalf("取消上下文不应记录关闭错误: %s", output.String())
 	}
 }
+
+func TestOIDCEmailVerification(t *testing.T) {
+	for _, value := range []any{true, false, "true", nil} {
+		profile := normalizeProfile(OAuthConnection{Provider: "oidc", IssuerURL: "https://id.example"}, map[string]any{"sub": "123", "email_verified": value})
+		if profile.EmailVerified != (value == true) {
+			t.Fatalf("邮箱验证标记无效: %v", value)
+		}
+	}
+}

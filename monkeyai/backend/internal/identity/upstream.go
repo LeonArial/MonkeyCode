@@ -58,13 +58,14 @@ type providerMetadata struct {
 }
 
 type upstreamProfile struct {
-	Provider  string
-	Issuer    string
-	Subject   string
-	Username  string
-	Name      string
-	Email     string
-	AvatarURL string
+	EmailVerified bool
+	Provider      string
+	Issuer        string
+	Subject       string
+	Username      string
+	Name          string
+	Email         string
+	AvatarURL     string
 }
 
 func (s *Service) connections(ctx context.Context) ([]OAuthConnection, error) {
@@ -279,6 +280,7 @@ func normalizeProfile(connection OAuthConnection, raw map[string]any) upstreamPr
 		AvatarURL: stringValue(raw, "picture", "avatar_url"),
 	}
 	if connection.Provider == "oidc" {
+		profile.EmailVerified, _ = raw["email_verified"].(bool)
 		if connection.IDField != "" {
 			profile.Subject = stringValue(raw, connection.IDField)
 		}

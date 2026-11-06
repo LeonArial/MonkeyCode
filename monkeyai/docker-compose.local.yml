@@ -1,0 +1,4 @@
+services:
+  backend:
+    environment:
+      MONKEYAI_LOCAL_DEV: "true"

@@ -54,6 +54,7 @@ type UpdateUser struct {
 }
 
 type OAuthIdentity struct {
+	EmailVerified           bool
 	Provider                string
 	Issuer                  string
 	Subject                 string
