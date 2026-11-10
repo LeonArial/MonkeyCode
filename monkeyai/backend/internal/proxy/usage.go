@@ -132,6 +132,11 @@ func (p *Proxy) modifyResponse(response *http.Response) error {
 	if !ok || ctx == nil {
 		return nil
 	}
+	if pc.bufferedStream {
+		if err := bufferChatResponse(response); err != nil {
+			return err
+		}
+	}
 	response.Body = newUsageCapture(p.logger, response.Body, usageCaptureContext{
 		ctx:      response.Request.Context(),
 		path:     normalizeUsagePath(response.Request.URL.Path),

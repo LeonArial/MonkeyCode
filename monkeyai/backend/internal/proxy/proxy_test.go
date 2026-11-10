@@ -409,3 +409,32 @@ func TestChatTemplateAdapterForwarding(t *testing.T) {
 		t.Fatalf("代理返回 %d: %s", res.Code, res.Body.String())
 	}
 }
+
+func TestBufferedChatPreservesContentToolsAndUsage(t *testing.T) {
+	t.Setenv("MONKEYAI_CHAT_TEMPLATE_MODEL_IDS", "glm-id")
+	t.Setenv("MONKEYAI_CHAT_TEMPLATE_BUFFER_STREAM", "true")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(body), `"stream":false`) || strings.Contains(string(body), `"stream_options"`) {
+			t.Errorf("未禁用上游流式: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"id":"chat_test","model":"glm-5.3","choices":[{"index":0,"message":{"role":"assistant","content":"你好","tool_calls":[{"id":"call_1","type":"function","function":{"name":"ping","arguments":"{}"}}]},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":4,"total_tokens":9}}`)
+	}))
+	defer upstream.Close()
+	p := NewProxy(ResolverFunc(func(context.Context, string, string) (Target, error) {
+		return Target{ModelID: "glm-id", Protocol: "openai_chat_completions", BaseURL: upstream.URL + "/v1"}, nil
+	}), discardLogger())
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"glm-5.3","stream":true,"stream_options":{"include_usage":true},"messages":[]}`))
+	req.Header.Set("Authorization", "Bearer test")
+	res := httptest.NewRecorder()
+	p.ServeHTTP(res, req)
+	if res.Code != 200 || !strings.HasPrefix(res.Header().Get("Content-Type"), "text/event-stream") {
+		t.Fatalf("响应错误: %d %s", res.Code, res.Body.String())
+	}
+	for _, want := range []string{`"content":"你好"`, `"finish_reason":"tool_calls"`, `"index":0`, `"total_tokens":9`, `data: [DONE]`} {
+		if !strings.Contains(res.Body.String(), want) {
+			t.Errorf("缺少 %s: %s", want, res.Body.String())
+		}
+	}
+}

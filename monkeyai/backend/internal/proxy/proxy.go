@@ -83,6 +83,7 @@ type proxyContext struct {
 	upstream          *url.URL
 	upstreamPath      string
 	stream            bool
+	bufferedStream    bool
 	requestBody       []byte
 	startedAt         time.Time
 	reservation       Reservation
@@ -263,19 +264,35 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Billing-Transaction-ID", reservation.ID)
 	}
 	logging.Bind(r.Context(), slog.String("phase", "upstream"))
+	buffered := meta.Stream && target.Protocol == "openai_chat_completions" && modelcompat.BufferedStream(target.ModelID)
+	if buffered {
+		var request map[string]json.RawMessage
+		if err := json.Unmarshal(body, &request); err != nil {
+			web.HTTPError(w, r, http.StatusBadRequest)
+			return
+		}
+		request["stream"] = json.RawMessage("false")
+		delete(request, "stream_options")
+		body, err = json.Marshal(request)
+		if err != nil {
+			web.HTTPError(w, r, http.StatusBadRequest)
+			return
+		}
+	}
 	r.GetBody = func() (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(body)), nil
 	}
 	r.Body, _ = r.GetBody()
 	r.ContentLength = int64(len(body))
 	ctx := context.WithValue(r.Context(), proxyContextKey{}, &proxyContext{
-		target:       target,
-		upstream:     upstream,
-		upstreamPath: upstreamPath,
-		stream:       meta.Stream,
-		requestBody:  body,
-		startedAt:    time.Now(),
-		reservation:  reservation,
+		target:         target,
+		upstream:       upstream,
+		upstreamPath:   upstreamPath,
+		stream:         meta.Stream,
+		bufferedStream: buffered,
+		requestBody:    body,
+		startedAt:      time.Now(),
+		reservation:    reservation,
 	})
 	p.reverse.ServeHTTP(w, r.WithContext(ctx))
 }
@@ -314,6 +331,9 @@ func (p *Proxy) rewrite(r *httputil.ProxyRequest) {
 	if !ok || ctx == nil || ctx.upstream == nil {
 		logging.Event(r.In.Context(), p.logger, slog.LevelError, "proxy.operation.error", "模型代理上下文缺失", "module", "proxy", "operation", "rewrite")
 		return
+	}
+	if ctx.bufferedStream {
+		r.Out.Header.Set("Accept-Encoding", "identity")
 	}
 	r.Out.URL.Scheme = ctx.upstream.Scheme
 	r.Out.URL.Host = ctx.upstream.Host

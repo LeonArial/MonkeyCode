@@ -57,3 +57,16 @@ func AdaptChat(body []byte, modelID string) ([]byte, error) {
 	data["chat_template_kwargs"] = raw
 	return json.Marshal(data)
 }
+
+// BufferedStream 仅为显式配置的模型启用非流式上游兼容。
+func BufferedStream(modelID string) bool {
+	if os.Getenv("MONKEYAI_CHAT_TEMPLATE_BUFFER_STREAM") != "true" {
+		return false
+	}
+	for _, id := range strings.Split(os.Getenv("MONKEYAI_CHAT_TEMPLATE_MODEL_IDS"), ",") {
+		if modelID != "" && strings.TrimSpace(id) == modelID {
+			return true
+		}
+	}
+	return false
+}
