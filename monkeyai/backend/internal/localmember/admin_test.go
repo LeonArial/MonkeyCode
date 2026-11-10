@@ -42,7 +42,8 @@ func TestAdminMemberAPI(t *testing.T) {
 		t.Fatalf("新增分组: %d %s", addedGroup.Code, addedGroup.Body.String())
 	}
 	var g struct {
-		ID string `json:"id"`
+		ID              string `json:"id"`
+		InitialPassword string `json:"initial_password"`
 	}
 	json.Unmarshal(addedGroup.Body.Bytes(), &g)
 	added := call("POST", "/admin/users", `{"name":"新成员","email":"member@example.com","role":"user","password":"member-password","group_ids":["`+g.ID+`"]}`, cookie)
@@ -50,14 +51,16 @@ func TestAdminMemberAPI(t *testing.T) {
 		t.Fatalf("新增成员: %d %s", added.Code, added.Body.String())
 	}
 	var u struct {
-		ID string `json:"id"`
+		ID              string `json:"id"`
+		InitialPassword string `json:"initial_password"`
 	}
 	json.Unmarshal(added.Body.Bytes(), &u)
 	duplicate := call("POST", "/admin/users", `{"name":"重复成员","email":"member@example.com","role":"user"}`, cookie)
 	if duplicate.Code != 409 {
 		t.Fatalf("重复邮箱: %d", duplicate.Code)
 	}
-	memberLogin := call("POST", "/auth/login", `{"email":"member@example.com","password":"member-password"}`, nil)
+	initialBody := `{"email":"member@example.com","password":"` + u.InitialPassword + `"}`
+	memberLogin := call("POST", "/auth/login", initialBody, nil)
 	if memberLogin.Code != 200 {
 		t.Fatalf("成员登录: %d %s", memberLogin.Code, memberLogin.Body.String())
 	}
@@ -69,7 +72,7 @@ func TestAdminMemberAPI(t *testing.T) {
 	if reset.Code != 200 {
 		t.Fatalf("重置密码: %d %s", reset.Code, reset.Body.String())
 	}
-	if old := call("POST", "/auth/login", `{"email":"member@example.com","password":"member-password"}`, nil); old.Code != 401 {
+	if old := call("POST", "/auth/login", initialBody, nil); old.Code != 401 {
 		t.Fatal("旧密码仍然有效")
 	}
 	var password struct {

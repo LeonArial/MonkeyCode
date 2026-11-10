@@ -382,3 +382,30 @@ func TestProxyErrorHandlerLogsUpstreamError(t *testing.T) {
 		t.Fatalf("代理日志缺少上下文或原始错误: %s", text)
 	}
 }
+
+func TestChatTemplateAdapterForwarding(t *testing.T) {
+	t.Setenv("MONKEYAI_CHAT_TEMPLATE_MODEL_IDS", "glm-id")
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(body), `"thinking":`) || !strings.Contains(string(body), `"enable_thinking":false`) {
+			t.Errorf("参数未转换: %s", body)
+		}
+		if r.ContentLength != int64(len(body)) {
+			t.Error("请求体长度未更新")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"你好"},"finish_reason":"stop"}]}`)
+	}))
+	defer upstream.Close()
+	resolver := ResolverFunc(func(context.Context, string, string) (Target, error) {
+		return Target{ModelID: "glm-id", Protocol: "openai_chat_completions", UpstreamModel: "glm-5.3", BaseURL: upstream.URL + "/v1"}, nil
+	})
+	p := NewProxy(resolver, discardLogger())
+	res := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"glm-5.3","messages":[{"role":"user","content":"你好"}],"thinking":{"type":"disabled"}}`))
+	req.Header.Set("Authorization", "Bearer test")
+	p.ServeHTTP(res, req)
+	if res.Code != 200 {
+		t.Fatalf("代理返回 %d: %s", res.Code, res.Body.String())
+	}
+}

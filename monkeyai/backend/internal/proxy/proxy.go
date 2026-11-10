@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/chaitin/MonkeyCode/monkeyai/backend/internal/modelcompat"
 	"github.com/chaitin/MonkeyCode/monkeyai/backend/internal/web"
 	"io"
 	"log/slog"
@@ -220,6 +221,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body, err = rewriteModel(body, target.UpstreamModel)
 		if err != nil {
 			slog.WarnContext(r.Context(), "操作失败", "module", "proxy", "operation", "ServeHTTP", "error", err)
+			web.HTTPError(w, r, http.StatusBadRequest)
+			return
+		}
+	}
+	if target.Protocol == "openai_chat_completions" {
+		body, err = modelcompat.AdaptChat(body, target.ModelID)
+		if err != nil {
 			web.HTTPError(w, r, http.StatusBadRequest)
 			return
 		}

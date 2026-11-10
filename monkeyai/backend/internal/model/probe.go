@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/chaitin/MonkeyCode/monkeyai/backend/internal/modelcompat"
 	"io"
 	"net"
 	"net/http"
@@ -141,6 +142,12 @@ func probeRequest(item Model, message string) (probeUpstream, error) {
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		return probeUpstream{}, err
+	}
+	if item.Protocol == ProtocolOpenAIChat {
+		encoded, err = modelcompat.AdaptChat(encoded, item.ID)
+		if err != nil {
+			return probeUpstream{}, err
+		}
 	}
 	return probeUpstream{URL: base.String(), Header: header, Body: encoded}, nil
 }
