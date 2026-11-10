@@ -580,22 +580,11 @@ export function ModelsPage() {
           body: JSON.stringify({ message: testMessage.trim() }),
         }
       )
+      const payload = await response.json().catch(() => null)
       if (!response.ok) {
-        const payload = await response.json().catch(() => null)
         throw new Error(payload?.error?.message ?? "模型测试失败")
       }
-      if (!response.body) throw new Error("模型没有返回响应")
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let content = ""
-      for (;;) {
-        const chunk = await reader.read()
-        if (chunk.done) break
-        content += decoder.decode(chunk.value, { stream: true })
-        setTestResponse(content)
-      }
-      content += decoder.decode()
-      setTestResponse(content || "模型返回了空响应")
+      setTestResponse(payload?.content || "模型返回了空响应")
     } catch (reason) {
       setTestResponse(
         reason instanceof Error ? reason.message : "模型测试失败"
@@ -2255,10 +2244,10 @@ export function ModelsPage() {
               disabled={testSending}
             />
           </Field>
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <p className="text-sm font-medium">响应内容</p>
             <div
-              className="min-h-24 whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-sm"
+              className="max-h-[min(20rem,40vh)] min-h-24 overflow-y-auto whitespace-pre-wrap break-all rounded-md border bg-muted/40 p-3 text-sm"
               aria-live="polite"
             >
               {testResponse || (
